@@ -1,15 +1,6 @@
 import classNames from 'classnames';
-import React, { FormEvent, ReactElement, useState } from 'react';
-import { useMutation, useQuery } from 'react-query';
-import {
-  AccountRecoveryParameters,
-  getErrorMessage,
-  getNodeByKey,
-  getNodeValue,
-  ValidateRecoveryParams,
-} from '../../lib/auth';
-import { formToJson } from '../../lib/form';
-import { disabledRefetch } from '../../lib/func';
+import React, { ReactElement } from 'react';
+import { getNodeValue } from '../../lib/auth';
 import { Button } from '../buttons/Button';
 import { TextField } from '../fields/TextField';
 import MailIcon from '../icons/Mail';
@@ -18,12 +9,7 @@ import { CloseModalFunc } from '../modals/common';
 import AuthModalHeader from './AuthModalHeader';
 import { AuthForm, AuthModalText } from './common';
 import TokenInput from './TokenField';
-import useTimer from '../../hooks/useTimer';
-import {
-  AuthFlow,
-  initializeKratosFlow,
-  submitKratosFlow,
-} from '../../lib/kratos';
+import useAccountRecovery from '../../hooks/useAccountRecovery';
 
 interface ForgotPasswordFormProps {
   initialEmail?: string;
@@ -36,51 +22,15 @@ function ForgotPasswordForm({
   onBack,
   onClose,
 }: ForgotPasswordFormProps): ReactElement {
-  const [hint, setHint] = useState('');
-  const [sentCount, setSentCount] = useState(0);
-  const [emailSent, setEmailSent] = useState(false);
-  const { timer, setTimer, runTimer } = useTimer(() => setEmailSent(false), 0);
-  const { data: recovery } = useQuery(
-    ['recovery', sentCount],
-    () => initializeKratosFlow(AuthFlow.Recovery),
-    {
-      ...disabledRefetch,
-    },
-  );
-
-  const { mutateAsync: sendEmail, isLoading } = useMutation(
-    (params: ValidateRecoveryParams) => submitKratosFlow(params),
-    {
-      onSuccess: ({ error }) => {
-        if (error) {
-          const requestError = getErrorMessage(error.ui.messages);
-          const emailError = getNodeByKey('email', error.ui.nodes);
-          const formError = getErrorMessage(emailError?.messages);
-          const message = requestError || formError;
-          return setHint(message);
-        }
-
-        setTimer(60);
-        runTimer();
-        setSentCount((value) => value + 1);
-        return setEmailSent(true);
-      },
-    },
-  );
-
-  const onSendEmail = async (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const { email } = formToJson(e.currentTarget);
-    const { action, nodes } = recovery.ui;
-    const csrfToken = getNodeByKey('csrf_token', nodes);
-    const params: AccountRecoveryParameters = {
-      csrf_token: csrfToken.attributes.value,
-      email,
-      method: 'link',
-    };
-
-    await sendEmail({ action, params });
-  };
+  const {
+    timer,
+    isSendingEmail,
+    isEmailSent,
+    onUpdateHint,
+    onSendRecovery: onSendEmail,
+    recovery,
+    errorHint: hint,
+  } = useAccountRecovery();
 
   return (
     <>
@@ -108,10 +58,10 @@ function ForgotPasswordForm({
           defaultValue={initialEmail}
           hint={hint}
           valid={!hint}
-          onChange={() => hint && setHint('')}
+          onChange={() => hint && onUpdateHint(null)}
           leftIcon={<MailIcon />}
           rightIcon={
-            emailSent && (
+            isEmailSent && (
               <VIcon
                 className="text-theme-color-avocado"
                 data-testid="email_sent_icon"
@@ -122,10 +72,10 @@ function ForgotPasswordForm({
         <Button
           className={classNames(
             'mt-6',
-            emailSent ? 'btn-primary' : 'bg-theme-color-cabbage',
+            isEmailSent ? 'btn-primary' : 'bg-theme-color-cabbage',
           )}
           type="submit"
-          disabled={emailSent || isLoading}
+          disabled={isEmailSent || isSendingEmail}
         >
           {timer === 0 ? 'Send email' : `${timer}s`}
         </Button>

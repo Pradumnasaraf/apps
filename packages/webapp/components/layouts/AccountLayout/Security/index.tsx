@@ -30,7 +30,6 @@ function AccountSecurityDefault({
   onSwitchDisplay,
 }: AccountSecurityDefaultProps): ReactElement {
   const { user } = useContext(AuthContext);
-  const [email, setEmail] = useState<string>(null);
   const [resetPasswordSent, setResetPasswordSent] = useState(false);
 
   const emailAction = isEmailSent ? (
@@ -55,8 +54,7 @@ function AccountSecurityDefault({
       >
         <AccountTextField
           fieldType="tertiary"
-          value={email ?? user.email}
-          onChange={(e) => setEmail(e.currentTarget.value)}
+          value={user.email}
           label="Email"
           inputId="email"
           leftIcon={<MailIcon />}
